@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Arena Survivor</title>
+<style>
+/* ===== CSS ===== */
+body {
+  margin:0; background:#101014; overflow:hidden;
+  display:flex; justify-content:center; align-items:center;
+  height:100vh;
+}
+#game {
+  background:#1e1e2e;
+  border:3px solid #555;
+  box-shadow:0 0 30px #000 inset;
+}
+#hud {
+  position:fixed; top:15px; left:50%; transform:translateX(-50%);
+  color:white; font-family:Segoe UI,Arial,sans-serif;
+  font-size:18px; display:flex; gap:40px;
+}
+.hint { opacity:0.6; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+<div id="hud">
+  <span id="health">Health: 100</span>
+  <span id="score">Score: 0</span>
+  <span class="hint">[SPACE] Sacrifice</span>
+</div>
+
+<script>
+/* ===== JavaScript ===== */
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = 800;
+canvas.height = 600;
+
+let player = { x:400, y:300, r:20, speed:4, hp:100 };
+let enemies = [];
+let particles = [];
+let score = 0;
+let keys = {};
+let gameOver = false;
+
+document.addEventListener('keydown', e => keys[e.code] = true);
+document.addEventListener('keyup',   e => keys[e.code] = false);
+
+function rand(min,max){ return Math.random()*(max-min)+min; }
+function distance(a,b){ return Math.hypot(a.x-b.x,a.y-b.y); }
+
+function spawnEnemy(){
+  let side = Math.floor(Math.random()*4);
+  let x,y;
+  if(side===0){ x=-30; y=rand(0,canvas.height); }
+  else if(side===1){ x=canvas.width+30; y=rand(0,canvas.height); }
+  else if(side===2){ x=rand(0,canvas.width); y=-30; }
+  else{ x=rand(0,canvas.width); y=canvas.height+30; }
+  enemies.push({x,y,r:15,speed:rand(1,2)});
+}
+
+function createParticles(x,y,color){
+  for(let i=0;i<10;i++){
+    particles.push({
+      x,y,
+      vx:rand(-2,2), vy:rand(-2,2),
+      life:30, color
+    });
+  }
+}
+
+function update(){
+  if(gameOver) return;
+
+  if(keys['ArrowUp']||keys['KeyW']) player.y -= player.speed;
+  if(keys['ArrowDown']||keys['KeyS']) player.y += player.speed;
+  if(keys['ArrowLeft']||keys['KeyA']) player.x -= player.speed;
+  if(keys['ArrowRight']||keys['KeyD']) player.x += player.speed;
+
+  player.x = Math.max(player.r, Math.min(canvas.width - player.r, player.x));
+  player.y = Math.max(player.r, Math.min(canvas.height - player.r, player.y));
+
+  if(keys['Space']){
+    if(player.hp > 1){
+      player.hp -= 0.2;
+      enemies = enemies.filter(e=>{
+        if(distance(player,e)<100){
+          createParticles(e.x,e.y,'orange');
+          score+=10;
+          return false;
+        }
+        return true;
+      });
+    }
+  }
+
+  enemies.forEach(e=>{
+    let dx = player.x - e.x;
+    let dy = player.y - e.y;
+    let d = Math.hypot(dx,dy);
+    e.x += (dx/d)*e.speed;
+    e.y += (dy/d)*e.speed;
+
+    if(distance(player,e)<player.r+e.r){
+      player.hp -= 0.5;
+      if(player.hp<=0) gameOver=true;
+    }
+  });
+
+  particles.forEach(p=>{
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life--;
+  });
+  particles = particles.filter(p=>p.life>0);
+
+  score += 0.05;
+  if(Math.random()<0.02) spawnEnemy();
+
+  document.getElementById('health').textContent = Health: ${player.hp.toFixed(0)};
+  document.getElementById('score').textContent  = Score: ${Math.floor(score)};
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  let g = ctx.createRadialGradient(player.x,player.y,50,player.x,player.y,300);
+  g.addColorStop(0,'rgba(40,40,80,0.4)');
+  g.addColorStop(1,'transparent');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  particles.forEach(p=>{
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life/30;
+    ctx.fillRect(p.x,p.y,4,4);
+    ctx.globalAlpha = 1;
+  });
+
+  enemies.forEach(e=>{
+    ctx.fillStyle = 'crimson';
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  ctx.fillStyle = 'deepskyblue';
+  ctx.beginPath();
+  ctx.arc(player.x,player.y,player.r,0,Math.PI*2);
+  ctx.fill();
+
+  if(gameOver){
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#fff';
+    ctx.font = '48px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2);
+    ctx.font = '24px Arial';
+    ctx.fillText(Score: ${Math.floor(score)}, canvas.width/2, canvas.height/2 + 40);
+  }
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+
+</body>
+</html>
